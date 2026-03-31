@@ -3,11 +3,14 @@ import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import EmailService from './email.mjs';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
+
+const emailService = new EmailService(process.env.EMAIL_PROVIDER || 'tempmail');
 
 // 随机用户名生成
 const firstNames = ['alex', 'mike', 'john', 'sarah', 'emma', 'lisa', 'david', 'james', 'emma', 'sophia', 'olivia', 'liam', 'noah', 'ethan', 'mason'];
@@ -38,78 +41,162 @@ function generateEmail(username) {
 }
 
 async function registerAccount(profile) {
-  const { browser, context, page } = await chromium.launchPersistentContext(
+  const context = await chromium.launchPersistentContext(
     `./accounts/${profile.username}`,
-    { headless: false }
+    { 
+      headless: false,
+      args: ['--disable-blink-features=AutomationControlled']
+    }
   );
+  
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  // 创建临时邮箱
+  let inbox = null;
+  try {
+    inbox = await emailService.createInbox();
+    profile.email = inbox.email;
+    console.log(`📧 临时邮箱: ${inbox.email}`);
+  } catch (err) {
+    console.log(`⚠️ 邮箱服务创建失败，使用备用邮箱`);
+    profile.email = generateEmail(generateUsername());
+  }
 
   try {
     console.log(`📝 开始注册: ${profile.username}`);
     
     // 访问注册页面
-    await page.goto('https://www.tiktok.com/signup', { timeout: 60000 });
+    await page.goto('https://www.tiktok.com/signup', { 
+      waitUntil: 'domcontentloaded',
+      timeout: 120000 
+    });
     await page.waitForTimeout(3000);
 
-    // 点击邮箱注册
-    const emailBtn = page.locator('text=Use phone / email / username').first();
-    if (await emailBtn.count() > 0) {
-      await emailBtn.click();
-      await page.waitForTimeout(1000);
-    }
+    console.log(`🔍 当前页面: ${await page.url()}`);
 
-    // 选择邮箱注册
-    const emailTab = page.locator('text=Email').first();
-    if (await emailTab.count() > 0) {
-      await emailTab.click();
-      await page.waitForTimeout(1000);
+    // 点击邮箱注册选项
+    const signupMethods = [
+      'text=Sign up with phone or email',
+      'text=Use phone / email / username',
+      'text=Email',
+    ];
+
+    for (const method of signupMethods) {
+      try {
+        const btn = page.locator(method).first();
+        if (await btn.count() > 0) {
+          await btn.click({ timeout: 3000 });
+          console.log(`✅ 点击: ${method}`);
+          await page.waitForTimeout(2000);
+          break;
+        }
+      } catch {}
     }
 
     // 输入邮箱
-    await page.fill('input[type="email"], input[placeholder*="email" i]', profile.email);
-    await page.waitForTimeout(500);
+    const emailSelectors = [
+      'input[type="email"]',
+      'input[placeholder*="email" i]',
+      'input:not([type])'
+    ];
 
-    // 点击继续
-    const continueBtn = page.locator('button:has-text("Continue")').first();
-    if (await continueBtn.count() > 0) {
-      await continueBtn.click();
-      await page.waitForTimeout(2000);
+    for (const sel of emailSelectors) {
+      const input = page.locator(sel).first();
+      if (await input.count() > 0) {
+        try {
+          await input.click({ timeout: 2000 });
+          await input.fill(profile.email);
+          console.log(`✅ 输入邮箱: ${profile.email}`);
+          break;
+        } catch {}
+      }
     }
 
-    // 输入生日
-    await page.fill('input[placeholder*="birthday" i], input[placeholder*="生日" i]', '1995-06-15');
-    await page.waitForTimeout(500);
-
-    // 继续
+    // 点击继续
+    await page.waitForTimeout(1000);
+    const continueBtn = page.locator('button:has-text("Continue"), button:has-text("下一步")').first();
     if (await continueBtn.count() > 0) {
-      await continueBtn.click();
+      await continueBtn.click({ timeout: 3000 });
+      console.log(`✅ 点击继续`);
       await page.waitForTimeout(2000);
     }
 
     // 输入用户名
-    await page.fill('input[placeholder*="username" i]', profile.username);
-    await page.waitForTimeout(1000);
-
-    // 输入密码
-    await page.fill('input[type="password"]', profile.password);
-    await page.waitForTimeout(500);
-
-    // 点击注册
-    const signupBtn = page.locator('button:has-text("Sign up")').first();
-    if (await signupBtn.count() > 0) {
-      await signupBtn.click();
-      await page.waitForTimeout(5000);
+    const usernameSelectors = ['input[placeholder*="username" i]', 'input[placeholder*="Username" i]'];
+    for (const sel of usernameSelectors) {
+      const input = page.locator(sel).first();
+      if (await input.count() > 0) {
+        await input.fill(profile.username);
+        console.log(`✅ 输入用户名`);
+        await page.waitForTimeout(1500);
+        break;
+      }
     }
 
-    // 等待验证码（这里需要手动处理或使用邮件API）
-    console.log(`⏳ 等待邮箱验证...`);
-    await page.waitForTimeout(30000);
+    // 输入密码
+    const passwordInput = page.locator('input[type="password"]').first();
+    if (await passwordInput.count() > 0) {
+      await passwordInput.fill(profile.password);
+      console.log(`✅ 输入密码`);
+    }
+
+    // 点击注册
+    const signupBtn = page.locator('button:has-text("Sign up"), button:has-text("注册")').first();
+    if (await signupBtn.count() > 0) {
+      await signupBtn.click();
+      console.log(`✅ 点击注册`);
+      await page.waitForTimeout(3000);
+    }
+
+    // 自动验证邮箱
+    if (inbox) {
+      console.log(`⏳ 等待验证码邮件...`);
+      
+      let verificationCode = null;
+      let attempts = 0;
+      const maxAttempts = 20;
+
+      while (!verificationCode && attempts < maxAttempts) {
+        await page.waitForTimeout(5000);
+        attempts++;
+        
+        const emails = await emailService.checkInbox(inbox);
+        console.log(`📬 检查邮箱... (${attempts}/${maxAttempts}), 收到 ${emails.length} 封邮件`);
+        
+        if (emails.length > 0) {
+          const result = emailService.extractVerificationCode(emails);
+          if (result) {
+            verificationCode = result.code;
+            console.log(`✅ 找到验证码: ${verificationCode}`);
+          }
+        }
+      }
+
+      if (verificationCode) {
+        // 查找验证码输入框
+        const codeInput = page.locator('input[placeholder*="code" i], input[placeholder*="Code" i], input[maxlength="6"]').first();
+        if (await codeInput.count() > 0) {
+          await codeInput.fill(verificationCode);
+          console.log(`✅ 输入验证码`);
+          
+          // 点击确认
+          const verifyBtn = page.locator('button:has-text("Verify"), button:has-text("确认"), button:has-text("Submit")').first();
+          if (await verifyBtn.count() > 0) {
+            await verifyBtn.click();
+            console.log(`✅ 点击确认`);
+            await page.waitForTimeout(5000);
+          }
+        }
+      } else {
+        console.log(`⚠️ 未收到验证码`);
+      }
+    }
 
     // 检查是否成功
     const currentUrl = page.url();
-    if (currentUrl.includes('/upload') || currentUrl.includes('/foryou')) {
+    if (currentUrl.includes('/upload') || currentUrl.includes('/foryou') || currentUrl.includes('/discover') || currentUrl.includes('/settings')) {
       console.log(`✅ 注册成功: ${profile.username}`);
-
-      // 保存账号信息
       const cookies = await context.cookies();
       await supabase.from('marketing_accounts').insert({
         username: profile.username,
@@ -119,12 +206,10 @@ async function registerAccount(profile) {
         status: 'registered',
         profile_data: JSON.stringify(profile)
       });
-
-      await browser.close();
+      await context.close();
       return true;
     } else {
-      console.log(`⚠️ 需要邮箱验证: ${profile.username}`);
-      // 保存待验证账号
+      console.log(`⏳ 需要额外验证: ${profile.username}`);
       await supabase.from('marketing_accounts').insert({
         username: profile.username,
         email: profile.email,
@@ -132,15 +217,13 @@ async function registerAccount(profile) {
         status: 'pending_verification',
         profile_data: JSON.stringify(profile)
       });
-
-      // 保存浏览器状态以便后续验证
-      await browser.close();
+      await context.close();
       return 'needs_verification';
     }
 
   } catch (err) {
     console.log(`❌ 注册失败: ${profile.username} - ${err.message}`);
-    await browser.close();
+    await context.close().catch(() => {});
     return false;
   }
 }
