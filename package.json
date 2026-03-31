@@ -1,20 +1,22 @@
 {
   "name": "tiktok-agent",
   "version": "1.0.0",
-  "description": "TikTok automated engagement agent",
-  "main": "src/worker.mjs",
+  "description": "TikTok automated engagement agent - Multi-user platform",
+  "main": "src/api/server.mjs",
   "type": "module",
   "scripts": {
     "start": "node src/worker.mjs",
-    "worker": "node src/worker.mjs",
-    "dev": "node src/worker.mjs"
+    "api": "node src/api/server.mjs",
+    "dev": "node src/api/server.mjs"
   },
-  "keywords": ["tiktok", "automation", "bot"],
+  "keywords": ["tiktok", "automation", "bot", "multi-user"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "playwright": "^1.58.2"
   }
 }
