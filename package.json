@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node src/worker.mjs",
     "api": "node src/api/server.mjs",
+    "register": "node src/register.mjs",
+    "bulk-register": "node src/register.mjs",
     "dev": "node src/api/server.mjs"
   },
   "keywords": ["tiktok", "automation", "bot", "multi-user"],
