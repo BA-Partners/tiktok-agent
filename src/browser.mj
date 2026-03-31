@@ -1,0 +1,45 @@
+import { chromium } from 'playwright';
+
+export async function createBrowser(userDataDir) {
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: false,
+    viewport: null,
+    slowMo: 50,
+
+    args: [
+      '--start-maximized',
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ],
+
+    // ✅ 伪装真实浏览器（关键）
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+
+    locale: 'en-US',
+    timezoneId: 'America/Los_Angeles'
+  });
+
+  const page = await context.newPage();
+
+  // ✅ 去掉 webdriver 标识
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => false
+    });
+
+    // ✅ 补充伪装（关键）
+    window.chrome = { runtime: {} };
+
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3]
+    });
+
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en']
+    });
+  });
+
+  return { context, page };
+}
