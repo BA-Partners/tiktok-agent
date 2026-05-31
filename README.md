@@ -387,6 +387,29 @@ chmod u+w /usr/local/Homebrew /usr/local/etc/bash_completion.d /usr/local/lib/pk
 brew install ngrok
 ```
 
+如果 Homebrew 继续报下面这种 cask 升级错误：
+
+```text
+Error: ngrok: Permission denied @ rb_file_s_rename - (/usr/local/Caskroom/ngrok/..., ...upgrading)
+```
+
+说明 `/usr/local/Caskroom` 或旧版 ngrok cask 目录也不是当前用户可写。修复 cask 目录后重新安装：
+
+```bash
+sudo chown -R "$USER" /usr/local/Caskroom /usr/local/bin/ngrok 2>/dev/null || true
+chmod -R u+rwX /usr/local/Caskroom 2>/dev/null || true
+brew reinstall ngrok
+ngrok version
+```
+
+如果还是失败，可以先移除旧 cask 目录再重新安装：
+
+```bash
+sudo rm -rf /usr/local/Caskroom/ngrok
+brew install ngrok
+ngrok version
+```
+
 如果你不想修 Homebrew，也可以去 ngrok 官方下载页下载 macOS agent zip，解压后把 `ngrok` 放到用户目录，例如：
 
 ```bash
