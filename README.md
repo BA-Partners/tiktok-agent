@@ -363,6 +363,40 @@ source .env
 curl http://localhost:3000/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
 ```
 
+#### 如果 Homebrew 报 `/usr/local/Homebrew is not writable`
+
+如果 `brew install cloudflared` 或 `brew install ngrok` 报下面这种错误：
+
+```text
+Error: /usr/local/Homebrew is not writable
+The following directories are not writable by your user
+```
+
+说明 Homebrew 目录 owner/权限不对。按 Homebrew 输出里的建议修复权限，然后重新安装：
+
+```bash
+sudo chown -R "$USER" /usr/local/Homebrew /usr/local/etc/bash_completion.d /usr/local/lib/pkgconfig /usr/local/share /usr/local/var/homebrew/locks /usr/local/var/log
+chmod u+w /usr/local/Homebrew /usr/local/etc/bash_completion.d /usr/local/lib/pkgconfig /usr/local/share /usr/local/var/homebrew/locks /usr/local/var/log
+```
+
+如果 Homebrew 输出里列了更多目录，请优先复制 Homebrew 自己提示的完整 `sudo chown -R ...` 和 `chmod u+w ...` 命令。
+
+修复后再试：
+
+```bash
+brew install ngrok
+```
+
+如果你不想修 Homebrew，也可以去 ngrok 官方下载页下载 macOS agent zip，解压后把 `ngrok` 放到用户目录，例如：
+
+```bash
+mkdir -p ~/bin
+mv ~/Downloads/ngrok ~/bin/ngrok
+chmod +x ~/bin/ngrok
+export PATH="$HOME/bin:$PATH"
+ngrok version
+```
+
 #### 方案 A：Cloudflare Tunnel（推荐临时测试）
 
 Cloudflare 官方文档说明 macOS 可以通过 Homebrew 安装 `cloudflared`。安装后可以把本机 `localhost:3000` 临时暴露成一个 HTTPS 地址。
