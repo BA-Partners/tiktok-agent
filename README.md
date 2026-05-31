@@ -164,6 +164,16 @@ curl http://localhost:3000/v1/chat/completions \
   }'
 ```
 
+如果你看到 `/v1/health` 返回 `"status":"ok"`、`/v1/models` 返回 `claw-chat-v1`，并且 `/v1/chat/completions` 返回助手内容，说明本地 Ollama + OpenAI-compatible API 已经跑通。
+
+也可以用自动冒烟测试验证同一组接口：
+
+```bash
+npm run smoke:local
+```
+
+冒烟测试会检查 `/v1/health`、`/v1/models` 和 `/v1/chat/completions`，全部通过时会输出 `Local API smoke test passed`。
+
 
 ### 如果你还没有项目目录
 

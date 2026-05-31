@@ -11,7 +11,8 @@
     "register": "node src/register.mjs",
     "bulk-register": "node src/register.mjs",
     "dev": "node src/api/server.mjs",
-    "doctor:local": "node scripts/local-doctor.mjs"
+    "doctor:local": "node scripts/local-doctor.mjs",
+    "smoke:local": "node scripts/local-smoke.mjs"
   },
   "keywords": [
     "tiktok",
