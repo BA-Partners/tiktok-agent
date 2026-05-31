@@ -1,20 +1,35 @@
 import 'dotenv/config';
-import { createClient } from '@supabase/supabase-js';
 import express from 'express';
 import cors from 'cors';
 import { spawn } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { chatWithOllama, checkOllamaHealth } from '../llm/ollama.mjs';
+import { getRagHealth, searchKnowledge } from '../rag/local.mjs';
+import {
+  createChatCompletion,
+  createOpenAiCompatibleError,
+  createResponse,
+  listOpenAiCompatibleModels
+} from '../llm/openai-compatible.mjs';
+import {
+  createTikTokAccount,
+  createUser,
+  findTikTokAccount,
+  findUserByCredentials,
+  findUserByEmail,
+  getLocalDbInfo,
+  getUserStats,
+  insertActionLog,
+  insertTaskLog,
+  listTikTokAccounts,
+  updateTikTokAccountStatus
+} from '../db/local.mjs';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
 
 const workers = new Map();
 
@@ -34,31 +49,107 @@ function generateAccountDir(userId, tiktokId) {
   return accountDir;
 }
 
+
+function sendOpenAiCompatibleError(res, err) {
+  if (err?.body?.error && err.status) {
+    return res.status(err.status).json(err.body);
+  }
+
+  const compatibleError = createOpenAiCompatibleError(err.message || 'Unknown error');
+  return res.status(compatibleError.status).json(compatibleError.body);
+}
+
+// OpenAI-compatible health endpoint
+app.get('/v1/health', async (req, res) => {
+  const health = await checkOllamaHealth();
+  res.status(health.available ? 200 : 503).json({
+    status: health.available ? 'ok' : 'unavailable',
+    ...health
+  });
+});
+
+// OpenAI-compatible model list
+app.get('/v1/models', (req, res) => {
+  res.json(listOpenAiCompatibleModels());
+});
+
+// OpenAI-compatible Chat Completions API
+app.post('/v1/chat/completions', async (req, res) => {
+  try {
+    res.json(await createChatCompletion(req.body || {}));
+  } catch (err) {
+    sendOpenAiCompatibleError(res, err);
+  }
+});
+
+// OpenAI-compatible Responses-style API
+app.post('/v1/responses', async (req, res) => {
+  try {
+    res.json(await createResponse(req.body || {}));
+  } catch (err) {
+    sendOpenAiCompatibleError(res, err);
+  }
+});
+
+
+// Local RAG knowledge base health
+app.get('/api/rag/health', (req, res) => {
+  res.json({ success: true, ...getRagHealth() });
+});
+
+// Local RAG search endpoint
+app.get('/api/rag/search', (req, res) => {
+  const query = String(req.query.q || '');
+  if (!query.trim()) {
+    return res.status(400).json({ error: 'q query parameter is required' });
+  }
+
+  res.json(searchKnowledge(query, { topK: req.query.topK }));
+});
+
+// 本地存储健康检查
+app.get('/api/storage/health', (req, res) => {
+  res.json({ success: true, ...getLocalDbInfo() });
+});
+
+// 本地 Ollama AI 对话接口
+app.post('/api/llm/chat', async (req, res) => {
+  try {
+    const result = await chatWithOllama(req.body || {});
+    res.json({
+      success: true,
+      provider: result.provider,
+      model: result.model,
+      reply: result.reply
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Ollama 服务健康检查
+app.get('/api/llm/health', async (req, res) => {
+  const health = await checkOllamaHealth();
+  res.status(health.available ? 200 : 503).json(health);
+});
+
 // 1. 用户注册
 app.post('/api/register', async (req, res) => {
   try {
     const { email } = req.body;
-    
-    // 检查邮箱是否已存在
-    const { data: existing } = await supabase
-      .from('agent_users')
-      .select('id')
-      .eq('email', email)
-      .single();
-    
+
+    if (!email) {
+      return res.status(400).json({ error: '邮箱不能为空' });
+    }
+
+    const existing = findUserByEmail(email);
     if (existing) {
       return res.status(400).json({ error: '邮箱已注册' });
     }
-    
+
     const token = generateToken();
-    const { data, error } = await supabase
-      .from('agent_users')
-      .insert({ email, api_token: token })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
+    const data = createUser({ email, token });
+
     res.json({ success: true, userId: data.id, token });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -69,18 +160,12 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, api_token } = req.body;
-    
-    const { data, error } = await supabase
-      .from('agent_users')
-      .select('*')
-      .eq('email', email)
-      .eq('api_token', api_token)
-      .single();
-    
-    if (error || !data) {
+    const data = findUserByCredentials({ email, apiToken: api_token });
+
+    if (!data) {
       return res.status(401).json({ error: '登录失败' });
     }
-    
+
     res.json({ success: true, userId: data.id, token: data.api_token });
   } catch (err) {
     res.status(401).json({ error: err.message });
@@ -91,20 +176,12 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/tiktok-accounts', async (req, res) => {
   try {
     const { userId, name, cookies } = req.body;
-    
-    const { data, error } = await supabase
-      .from('agent_tiktok_accounts')
-      .insert({
-        user_id: userId,
-        name,
-        cookies: JSON.stringify(cookies),
-        status: 'active'
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
+
+    if (!userId || !name) {
+      return res.status(400).json({ error: 'userId 和 name 不能为空' });
+    }
+
+    const data = createTikTokAccount({ userId, name, cookies });
     res.json({ success: true, accountId: data.id });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -115,14 +192,7 @@ app.post('/api/tiktok-accounts', async (req, res) => {
 app.get('/api/tiktok-accounts/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    const { data, error } = await supabase
-      .from('agent_tiktok_accounts')
-      .select('id, name, status, created_at')
-      .eq('user_id', userId);
-    
-    if (error) throw error;
-    res.json({ accounts: data || [] });
+    res.json({ accounts: listTikTokAccounts(userId) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -132,85 +202,81 @@ app.get('/api/tiktok-accounts/:userId', async (req, res) => {
 app.post('/api/start-task', async (req, res) => {
   try {
     const { userId, accountId } = req.body;
-    
+
     if (workers.has(accountId)) {
       return res.status(400).json({ error: '任务已在运行' });
     }
-    
+
     // 获取账号信息
-    const { data: account } = await supabase
-      .from('agent_tiktok_accounts')
-      .select('*')
-      .eq('id', accountId)
-      .eq('user_id', userId)
-      .single();
-    
+    const account = findTikTokAccount({ userId, accountId });
     if (!account) throw new Error('账号不存在');
-    
+
     // 创建浏览器配置目录
     const accountDir = generateAccountDir(userId, accountId);
-    
+
     // 注入 Cookie
     const cookies = JSON.parse(account.cookies || '[]');
     if (cookies.length > 0) {
-      const cookieContent = cookies.map(c => 
+      const cookieContent = cookies.map(c =>
         `${c.domain}\t${c.hostOnly?'TRUE':'FALSE'}\t${c.path}\t${c.secure?'TRUE':'FALSE'}\t${c.expires || -1}\t${c.name}\t${c.value}`
       ).join('\n');
       fs.writeFileSync(path.join(accountDir, 'cookies.txt'), cookieContent);
     }
-    
+
     // 更新账号状态
-    await supabase.from('agent_tiktok_accounts')
-      .update({ status: 'running', last_used: new Date().toISOString() })
-      .eq('id', accountId);
-    
-    // 记录启动
-    await supabase.from('agent_task_logs').insert({
-      user_id: userId,
-      account_id: accountId,
-      action: 'start'
+    updateTikTokAccountStatus({
+      accountId,
+      status: 'running',
+      lastUsed: new Date().toISOString()
     });
-    
+
+    // 记录启动
+    insertTaskLog({ userId, accountId, action: 'start' });
+
     // 启动 worker 进程
     const worker = spawn('node', ['src/worker.mjs', accountDir], {
       cwd: process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ACCOUNT_ID: accountId.toString(), USER_ID: userId.toString() }
     });
-    
+
     workers.set(accountId, {
       process: worker,
       userId,
       accountId,
       startTime: Date.now()
     });
-    
+
     worker.stdout.on('data', async (data) => {
       const log = data.toString();
       console.log(`[Worker ${accountId}]`, log);
-      
+
       // 记录日志
       if (log.includes('点赞')) {
-        await supabase.from('agent_action_logs').insert({
-          user_id: userId,
-          account_id: accountId,
-          action: 'like',
-          details: log.trim()
-        }).catch(() => {});
+        try {
+          insertActionLog({
+            userId,
+            accountId,
+            action: 'like',
+            details: log.trim()
+          });
+        } catch {}
       }
     });
-    
+
     worker.stderr.on('data', (data) => {
       console.error(`[Worker ${accountId} Error]`, data.toString());
     });
-    
+
     worker.on('exit', async (code) => {
       workers.delete(accountId);
-      await supabase.from('agent_tiktok_accounts')
-        .update({ status: 'stopped' })
-        .eq('id', accountId);
+      try {
+        updateTikTokAccountStatus({ accountId, status: 'stopped' });
+      } catch (err) {
+        console.error(`[Worker ${accountId} Status Error]`, err.message);
+      }
     });
-    
+
     res.json({ success: true, message: '任务已启动' });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -221,25 +287,18 @@ app.post('/api/start-task', async (req, res) => {
 app.post('/api/stop-task', async (req, res) => {
   try {
     const { userId, accountId } = req.body;
-    
+
     const worker = workers.get(accountId);
     if (!worker) {
       return res.status(400).json({ error: '任务未运行' });
     }
-    
+
     worker.process.kill();
     workers.delete(accountId);
-    
-    await supabase.from('agent_tiktok_accounts')
-      .update({ status: 'stopped' })
-      .eq('id', accountId);
-    
-    await supabase.from('agent_task_logs').insert({
-      user_id: userId,
-      account_id: accountId,
-      action: 'stop'
-    });
-    
+
+    updateTikTokAccountStatus({ accountId, status: 'stopped' });
+    insertTaskLog({ userId, accountId, action: 'stop' });
+
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -250,22 +309,10 @@ app.post('/api/stop-task', async (req, res) => {
 app.get('/api/stats/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    const { data: actions } = await supabase
-      .from('agent_action_logs')
-      .select('action, count(*)')
-      .eq('user_id', userId)
-      .groupBy('action');
-    
-    const { data: tasks } = await supabase
-      .from('agent_task_logs')
-      .select('action, count(*)')
-      .eq('user_id', userId)
-      .groupBy('action');
-    
-    res.json({ 
-      actions: actions || [],
-      tasks: tasks || [],
+    const stats = getUserStats(userId);
+
+    res.json({
+      ...stats,
       runningWorkers: Array.from(workers.keys())
     });
   } catch (err) {

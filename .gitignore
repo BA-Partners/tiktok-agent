@@ -19,3 +19,13 @@ npm-debug.log*
 
 # Accounts (browser profiles)
 accounts/
+
+# Local database
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Runtime deployment logs and pid files
+logs/
+*.pid
