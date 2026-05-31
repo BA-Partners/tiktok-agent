@@ -264,6 +264,39 @@ ollama list
 ollama serve
 ```
 
+如果 `ollama serve` 报下面这种错误：
+
+```text
+Error: mkdir /Volumes/EXTERNAL_USB/ollama_models: permission denied: ensure path elements are traversable
+```
+
+说明你的 Mac 环境里设置了 `OLLAMA_MODELS=/Volumes/EXTERNAL_USB/ollama_models`，但当前用户没有权限访问这个外接盘目录。最快修复是临时改回默认模型目录：
+
+```bash
+pkill ollama || true
+unset OLLAMA_MODELS
+launchctl unsetenv OLLAMA_MODELS
+mkdir -p ~/.ollama/models
+ollama serve
+```
+
+保持这个终端不要关，再开新终端确认：
+
+```bash
+curl http://localhost:11434/api/tags
+ollama list
+```
+
+如果你必须继续把模型放在外接盘，则修复外接盘目录权限：
+
+```bash
+sudo mkdir -p /Volumes/EXTERNAL_USB/ollama_models
+sudo chown -R "$USER":staff /Volumes/EXTERNAL_USB/ollama_models
+chmod -R u+rwX /Volumes/EXTERNAL_USB/ollama_models
+launchctl setenv OLLAMA_MODELS /Volumes/EXTERNAL_USB/ollama_models
+ollama serve
+```
+
 保持 `ollama serve` 这个终端不要关，再另开一个终端重启 API：
 
 ```bash
@@ -277,6 +310,13 @@ npm run api:local
 cd ~/tiktok-agent
 grep LOCAL_API_KEY .env
 grep requireLocalApiKey src/api/server.mjs
+```
+
+如果 `grep requireLocalApiKey src/api/server.mjs` 没有任何输出，说明你本地代码还没有拿到 API Key 中间件更新；先执行：
+
+```bash
+gh pr checkout 2 --repo BA-Partners/tiktok-agent
+git pull
 ```
 
 回到运行 API 的终端按 `Ctrl+C` 停止旧进程，然后重新启动：

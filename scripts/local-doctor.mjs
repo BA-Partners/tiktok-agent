@@ -21,6 +21,28 @@ function exists(relativePath) {
   return fs.existsSync(path.resolve(process.cwd(), relativePath));
 }
 
+
+function checkOllamaModelsDir() {
+  const modelsDir = process.env.OLLAMA_MODELS;
+  if (!modelsDir) {
+    return true;
+  }
+
+  const resolved = path.resolve(modelsDir);
+  try {
+    fs.mkdirSync(resolved, { recursive: true });
+    fs.accessSync(resolved, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK);
+    ok(`OLLAMA_MODELS is writable: ${resolved}`);
+    return true;
+  } catch (err) {
+    fail(`OLLAMA_MODELS is not writable: ${resolved}`);
+    warn(`Ollama may fail to start with: mkdir ${resolved}: permission denied`);
+    warn('Either unset OLLAMA_MODELS to use ~/.ollama/models, or fix ownership/permissions on that directory.');
+    warn('Reset example: unset OLLAMA_MODELS && launchctl unsetenv OLLAMA_MODELS && mkdir -p ~/.ollama/models');
+    return false;
+  }
+}
+
 async function checkOllama() {
   try {
     const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`);
@@ -77,6 +99,9 @@ if (exists('.env')) {
 } else {
   warn('.env not found. Run: cp .env.example .env');
 }
+
+const ollamaModelsDirOk = checkOllamaModelsDir();
+passed = passed && ollamaModelsDirOk;
 
 const ollamaOk = await checkOllama();
 passed = passed && ollamaOk;
