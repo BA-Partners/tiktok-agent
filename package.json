@@ -10,7 +10,8 @@
     "api:local": "PUBLIC_MODEL_NAME=claw-chat-v1 RAG_ENABLED=true RAG_KB_DIR=knowledge node src/api/server.mjs",
     "register": "node src/register.mjs",
     "bulk-register": "node src/register.mjs",
-    "dev": "node src/api/server.mjs"
+    "dev": "node src/api/server.mjs",
+    "doctor:local": "node scripts/local-doctor.mjs"
   },
   "keywords": [
     "tiktok",

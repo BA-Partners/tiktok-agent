@@ -64,16 +64,26 @@ ollama run qwen2.5:7b "你好，用一句话介绍你自己"
 ollama serve
 ```
 
-另开一个终端窗口，在项目目录执行：
+另开一个终端窗口，**先进入本项目目录**再执行。你刚才看到 `cp: .env.example: No such file or directory` 和 `Could not read package.json`，就是因为命令是在 `/Users/ajin` 目录执行的，而不是项目目录。
 
 ```bash
-# 2. 复制环境变量模板
+# 2. 进入项目目录。把下面路径替换成你实际保存 tiktok-agent 的位置。
+cd /path/to/tiktok-agent
+
+# 3. 确认当前位置正确：这两个文件必须存在。
+pwd
+ls package.json .env.example
+
+# 4. 复制环境变量模板
 cp .env.example .env
 
-# 3. 安装依赖
+# 5. 安装依赖
 npm install
 
-# 4. 启动本地 OpenAI-compatible API
+# 6. 运行本地环境检查
+npm run doctor:local
+
+# 7. 启动本地 OpenAI-compatible API
 npm run api:local
 ```
 
@@ -92,6 +102,27 @@ curl http://localhost:3000/v1/chat/completions \
     ]
   }'
 ```
+
+
+### 如果你还没有项目目录
+
+如果你的 Mac 上还没有 `tiktok-agent` 项目目录，需要先把代码或打包文件放到本机。常见方式二选一：
+
+```bash
+# 方式 A：如果你有 git 仓库地址
+cd ~
+git clone <你的仓库地址> tiktok-agent
+cd ~/tiktok-agent
+```
+
+```bash
+# 方式 B：如果你拿到的是 tiktok-agent-1.0.0.tgz 打包文件
+mkdir -p ~/tiktok-agent
+tar -xzf /path/to/tiktok-agent-1.0.0.tgz -C ~/tiktok-agent --strip-components=1
+cd ~/tiktok-agent
+```
+
+进入目录后再执行 `cp .env.example .env`、`npm install` 和 `npm run api:local`。
 
 ### 远程服务连接你 Mac 上的 Ollama
 
