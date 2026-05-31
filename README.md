@@ -66,6 +66,53 @@ ollama serve
 
 另开一个终端窗口，**先进入本项目目录**再执行。你刚才看到 `cp: .env.example: No such file or directory` 和 `Could not read package.json`，就是因为命令是在 `/Users/ajin` 目录执行的，而不是项目目录。
 
+
+### 先确认你拿到的是包含本地 AI 功能的新版本
+
+如果你刚从 GitHub 克隆后看到：
+
+```text
+ls: .env.example: No such file or directory
+npm error Missing script: "doctor:local"
+npm error Missing script: "api:local"
+```
+
+说明你当前 Mac 上的 `~/tiktok-agent` 还是旧版代码，通常是因为 GitHub 仓库的默认分支还没有合并本地 AI 这次 PR。不要继续在旧目录里执行 `npm run api:local`，因为旧版 `package.json` 里没有这个脚本。
+
+进入项目目录后先检查这几个文件是否存在：
+
+```bash
+cd ~/tiktok-agent
+ls .env.example scripts/local-doctor.mjs src/llm/ollama.mjs src/db/local.mjs
+npm run | grep -E 'api:local|doctor:local'
+```
+
+如果这些文件或脚本不存在，请先任选一种方式更新到包含本地 AI 功能的新版本：
+
+```bash
+# 方式 1：如果这次改动已经合并到默认分支
+cd ~/tiktok-agent
+git pull
+```
+
+```bash
+# 方式 2：如果这次改动还在 PR 中，先 checkout 对应 PR
+cd ~/tiktok-agent
+gh pr list --repo BA-Partners/tiktok-agent
+gh pr checkout <PR编号> --repo BA-Partners/tiktok-agent
+```
+
+```bash
+# 方式 3：使用本次构建生成的 tiktok-agent-1.0.0.tgz 包
+rm -rf ~/tiktok-agent
+mkdir -p ~/tiktok-agent
+tar -xzf /path/to/tiktok-agent-1.0.0.tgz -C ~/tiktok-agent --strip-components=1
+cd ~/tiktok-agent
+```
+
+确认 `.env.example`、`scripts/local-doctor.mjs` 和 `api:local` 都存在后，再继续执行后面的 `.env`、`npm install`、`npm run doctor:local` 和 `npm run api:local`。
+
+
 ```bash
 # 2. 进入项目目录。把下面路径替换成你实际保存 tiktok-agent 的位置。
 cd /path/to/tiktok-agent
@@ -106,13 +153,9 @@ curl http://localhost:3000/v1/chat/completions \
 
 ### 如果你还没有项目目录
 
-如果你的 Mac 上还没有 `tiktok-agent` 项目目录，需要先把代码或打包文件放到本机。你刚才运行的：
+如果你的 Mac 上还没有 `tiktok-agent` 项目目录，需要先把代码或打包文件放到本机。注意：`gh repo clone BA-Partners/tiktok-agent` 默认克隆 GitHub 仓库的默认分支；如果这次本地 AI 改动还没有合并到默认分支，克隆成功后仍然可能缺少 `.env.example`、`doctor:local` 和 `api:local`。
 
-```bash
-gh repo clone BA-Partners/tiktok-agent
-```
-
-失败原因是 GitHub CLI 还没有登录。可以按下面三种方式任选一种。
+可以按下面三种方式任选一种。
 
 #### 方式 A：不用 GitHub CLI，直接用 git clone
 
@@ -140,6 +183,8 @@ gh auth login
 cd ~
 gh repo clone BA-Partners/tiktok-agent tiktok-agent
 cd ~/tiktok-agent
+# 如果 .env.example 不存在，说明默认分支还没有合并本地 AI PR；请回到上面的“先确认你拿到的是包含本地 AI 功能的新版本”。
+ls .env.example scripts/local-doctor.mjs
 ```
 
 也可以用 token：
@@ -148,6 +193,8 @@ cd ~/tiktok-agent
 export GH_TOKEN=你的GitHubToken
 gh repo clone BA-Partners/tiktok-agent tiktok-agent
 cd ~/tiktok-agent
+# 如果 .env.example 不存在，说明默认分支还没有合并本地 AI PR；请回到上面的“先确认你拿到的是包含本地 AI 功能的新版本”。
+ls .env.example scripts/local-doctor.mjs
 ```
 
 #### 方式 C：使用打包文件
