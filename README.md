@@ -448,12 +448,18 @@ ngrok config add-authtoken 你的ngrokToken
 ngrok http 3000
 ```
 
-命令输出里会出现一个 `https://...ngrok-free.app` 地址。带 API key 测试：
+注意：这里必须是 `ngrok http 3000`，因为本 API 运行在 `localhost:3000`。如果误运行了 `ngrok http 80`，ngrok 会把公网地址转发到 `localhost:80`，不会连到本项目 API；回到 ngrok 终端按 `Ctrl+C` 停止后，重新执行 `ngrok http 3000`。
+
+`ngrok config add-authtoken ...` 里的 token 是敏感凭据，不要发到聊天或截图里。如果已经泄露，请到 ngrok Dashboard 里 revoke / rotate authtoken，然后重新执行 `ngrok config add-authtoken 新token`。
+
+命令输出里会出现一个 `https://...ngrok-free.app` 或 `https://...ngrok-free.dev` 地址。带 API key 测试：
 
 ```bash
 source .env
 curl https://你的地址.ngrok-free.app/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
 ```
+
+如果你的地址是 `.ngrok-free.dev`，就把上面的域名替换成实际输出的 `.ngrok-free.dev` 地址。
 
 停止 tunnel：回到运行 `ngrok http 3000` 的终端按 `Ctrl+C`。
 
