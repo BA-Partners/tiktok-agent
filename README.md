@@ -242,6 +242,60 @@ ls package.json .env.example
 
 确认无误后再执行 `cp .env.example .env`、`npm install` 和 `npm run api:local`。
 
+
+### 常见问题：`/v1/health` 返回 503 或 API Key 没生效
+
+如果你看到下面这种返回：
+
+```json
+{"status":"unavailable","provider":"ollama","baseUrl":"http://localhost:11434","model":"qwen2.5:7b","available":false,"modelInstalled":false,"error":"fetch failed"}
+```
+
+这表示 **API 服务已经在 `3000` 端口响应了，但它连不上本机 Ollama 的 `11434` 端口**。先在新终端检查 Ollama：
+
+```bash
+curl http://localhost:11434/api/tags
+ollama list
+```
+
+如果连接失败，重新启动 Ollama：
+
+```bash
+ollama serve
+```
+
+保持 `ollama serve` 这个终端不要关，再另开一个终端重启 API：
+
+```bash
+cd ~/tiktok-agent
+npm run api:local
+```
+
+如果你设置了 `LOCAL_API_KEY`，但不带 `Authorization` 访问仍然不是 `401`，通常说明 **API 是在设置 `.env` 之前启动的旧进程，或者本地分支还没有拉到 API Key 中间件代码**。按下面顺序重启并验证：
+
+```bash
+cd ~/tiktok-agent
+grep LOCAL_API_KEY .env
+grep requireLocalApiKey src/api/server.mjs
+```
+
+回到运行 API 的终端按 `Ctrl+C` 停止旧进程，然后重新启动：
+
+```bash
+npm run api:local
+```
+
+再另开终端验证。正确状态是：不带 key 返回 `401`，带 key 返回 `200` 或在 Ollama 未运行时返回 `503`。
+
+```bash
+cd ~/tiktok-agent
+source .env
+curl -i http://localhost:3000/v1/health
+curl -i http://localhost:3000/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
+```
+
+如果第二条仍然是 `503`，说明鉴权已经通过，但 Ollama 还没启动或不可达；回到上面的 `ollama serve` 步骤。
+
 ### 从公网或远程环境访问你的 Mac API
 
 如果只是你自己在 Mac 上使用，停在 `http://localhost:3000` 即可。如果要让我这个远程环境访问你的 Mac，需要先把 Mac 上的 API 暴露成一个远程可达地址。
