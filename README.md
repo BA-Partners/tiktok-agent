@@ -96,10 +96,13 @@ git pull
 ```
 
 ```bash
-# 方式 2：如果这次改动还在 PR 中，先 checkout 对应 PR
+# 方式 2：如果这次改动还在 PR 中，先 checkout 对应 PR。
+# 注意：不要把 <PR编号> 原样输入到 zsh，尖括号会被 shell 当成重定向。
 cd ~/tiktok-agent
 gh pr list --repo BA-Partners/tiktok-agent
-gh pr checkout <PR编号> --repo BA-Partners/tiktok-agent
+
+# 例如 gh pr list 显示 #2，就执行下面这一行：
+gh pr checkout 2 --repo BA-Partners/tiktok-agent
 ```
 
 ```bash
@@ -111,6 +114,29 @@ cd ~/tiktok-agent
 ```
 
 确认 `.env.example`、`scripts/local-doctor.mjs` 和 `api:local` 都存在后，再继续执行后面的 `.env`、`npm install`、`npm run doctor:local` 和 `npm run api:local`。
+
+#### 针对你当前输出的直接修复命令
+
+如果 `gh pr list` 显示本地 AI 改动在 `#2`，并且你现在位于 `~/tiktok-agent`，直接执行下面这一组。不要再运行 `gh pr checkout <PR编号>`，也不要在当前目录里再次运行 `gh repo clone BA-Partners/tiktok-agent`，否则会在项目里套一个新的 `tiktok-agent/` 子目录。
+
+```bash
+cd ~/tiktok-agent
+
+# 如果你刚刚在项目目录里又 clone 了一次，清理嵌套出来的子目录。
+rm -rf ./tiktok-agent
+
+# checkout 真正包含 .env.example、doctor:local、api:local 的 PR。
+gh pr checkout 2 --repo BA-Partners/tiktok-agent
+
+# 确认新文件和脚本已经存在。
+ls .env.example scripts/local-doctor.mjs src/llm/ollama.mjs src/db/local.mjs
+npm run | grep -E 'api:local|doctor:local'
+
+cp .env.example .env
+npm install
+npm run doctor:local
+npm run api:local
+```
 
 
 ```bash
@@ -183,7 +209,7 @@ gh auth login
 cd ~
 gh repo clone BA-Partners/tiktok-agent tiktok-agent
 cd ~/tiktok-agent
-# 如果 .env.example 不存在，说明默认分支还没有合并本地 AI PR；请回到上面的“先确认你拿到的是包含本地 AI 功能的新版本”。
+# 如果 .env.example 不存在，说明默认分支还没有合并本地 AI PR；请执行 gh pr checkout 2 或回到上面的“先确认你拿到的是包含本地 AI 功能的新版本”。
 ls .env.example scripts/local-doctor.mjs
 ```
 
