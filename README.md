@@ -45,6 +45,75 @@ RAG_TOP_K=4
 RAG_CHUNK_SIZE=1200
 ```
 
+
+## Mac 本地上线：Ollama + 本 API 同机运行
+
+如果你已经在 Mac 上完成：
+
+```bash
+ollama pull qwen2.5:7b
+ollama run qwen2.5:7b "你好，用一句话介绍你自己"
+```
+
+并看到模型正常回答，说明 Ollama 和 `qwen2.5:7b` 已经可用。接下来不要输入说明文字里的 `Mac:`；那只是架构说明，不是命令。
+
+在 Mac 上运行本项目时，推荐按下面顺序执行：
+
+```bash
+# 1. 保持 Ollama 服务运行。如果已经有 Ollama App 在后台运行，这一步可以跳过。
+ollama serve
+```
+
+另开一个终端窗口，在项目目录执行：
+
+```bash
+# 2. 复制环境变量模板
+cp .env.example .env
+
+# 3. 安装依赖
+npm install
+
+# 4. 启动本地 OpenAI-compatible API
+npm run api:local
+```
+
+再另开一个终端窗口验证：
+
+```bash
+curl http://localhost:11434/api/tags
+curl http://localhost:3000/v1/health
+curl http://localhost:3000/v1/models
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claw-chat-v1",
+    "messages": [
+      { "role": "user", "content": "你好，用一句话介绍你自己" }
+    ]
+  }'
+```
+
+### 远程服务连接你 Mac 上的 Ollama
+
+Ollama 默认监听 `127.0.0.1:11434`，只允许本机访问。如果 API 服务不在你的 Mac 上运行，远程环境不能使用 `http://localhost:11434` 访问你的 Mac。
+
+如果你确实要让远程 API 连接 Mac 上的 Ollama，需要先让 Ollama 监听外部地址，并使用真实可达的 IP、VPN 或隧道地址：
+
+```bash
+pkill ollama || true
+OLLAMA_HOST=0.0.0.0:11434 ollama serve
+```
+
+然后把运行 API 的环境配置为真实地址，例如：
+
+```env
+OLLAMA_BASE_URL=http://你的Mac可达IP:11434
+```
+
+不要直接使用示例里的 `http://100.x.y.z:11434`；`100.x.y.z` 只是占位符，必须替换成真实 Tailscale/VPN/IP 地址。
+
+> 安全提醒：不要把 `11434` 裸露到公网。优先使用 Tailscale、VPN 或带鉴权的隧道。
+
 ## 本地 Ollama AI
 
 项目提供了一个本地 Ollama 对话接口，不需要 OpenAI API Key。
