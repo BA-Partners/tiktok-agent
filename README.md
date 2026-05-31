@@ -106,23 +106,68 @@ curl http://localhost:3000/v1/chat/completions \
 
 ### 如果你还没有项目目录
 
-如果你的 Mac 上还没有 `tiktok-agent` 项目目录，需要先把代码或打包文件放到本机。常见方式二选一：
+如果你的 Mac 上还没有 `tiktok-agent` 项目目录，需要先把代码或打包文件放到本机。你刚才运行的：
 
 ```bash
-# 方式 A：如果你有 git 仓库地址
+gh repo clone BA-Partners/tiktok-agent
+```
+
+失败原因是 GitHub CLI 还没有登录。可以按下面三种方式任选一种。
+
+#### 方式 A：不用 GitHub CLI，直接用 git clone
+
+如果仓库对你的 Git 凭据可访问，优先用这个方式：
+
+```bash
 cd ~
-git clone <你的仓库地址> tiktok-agent
+git clone https://github.com/BA-Partners/tiktok-agent.git tiktok-agent
 cd ~/tiktok-agent
 ```
 
+如果这是私有仓库，`git clone` 可能会要求你输入 GitHub 用户名和 Personal Access Token，或者提示你没有权限。
+
+#### 方式 B：先登录 GitHub CLI，再用 gh repo clone
+
+如果你想继续用 `gh repo clone`，先完成 GitHub CLI 登录：
+
 ```bash
-# 方式 B：如果你拿到的是 tiktok-agent-1.0.0.tgz 打包文件
+gh auth login
+```
+
+按提示选择 GitHub.com、HTTPS、浏览器登录。登录成功后再执行：
+
+```bash
+cd ~
+gh repo clone BA-Partners/tiktok-agent tiktok-agent
+cd ~/tiktok-agent
+```
+
+也可以用 token：
+
+```bash
+export GH_TOKEN=你的GitHubToken
+gh repo clone BA-Partners/tiktok-agent tiktok-agent
+cd ~/tiktok-agent
+```
+
+#### 方式 C：使用打包文件
+
+如果你拿到的是 `tiktok-agent-1.0.0.tgz` 打包文件：
+
+```bash
 mkdir -p ~/tiktok-agent
 tar -xzf /path/to/tiktok-agent-1.0.0.tgz -C ~/tiktok-agent --strip-components=1
 cd ~/tiktok-agent
 ```
 
-进入目录后再执行 `cp .env.example .env`、`npm install` 和 `npm run api:local`。
+进入目录后，用下面命令确认目录正确：
+
+```bash
+pwd
+ls package.json .env.example
+```
+
+确认无误后再执行 `cp .env.example .env`、`npm install` 和 `npm run api:local`。
 
 ### 远程服务连接你 Mac 上的 Ollama
 
