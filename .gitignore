@@ -19,3 +19,9 @@ npm-debug.log*
 
 # Accounts (browser profiles)
 accounts/
+
+# Local database
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
