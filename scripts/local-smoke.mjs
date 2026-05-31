@@ -1,5 +1,7 @@
+import 'dotenv/config';
 const API_BASE_URL = (process.env.API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
 const PUBLIC_MODEL_NAME = process.env.PUBLIC_MODEL_NAME || 'claw-chat-v1';
+const LOCAL_API_KEY = process.env.LOCAL_API_KEY || process.env.API_KEY || '';
 
 function ok(message) {
   console.log(`✅ ${message}`);
@@ -18,8 +20,15 @@ async function readJson(response) {
   }
 }
 
+function withAuthHeaders(headers = {}) {
+  return LOCAL_API_KEY ? { ...headers, Authorization: `Bearer ${LOCAL_API_KEY}` } : headers;
+}
+
 async function requestJson(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: withAuthHeaders(options.headers)
+  });
   const body = await readJson(response);
   if (!response.ok) {
     throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(body)}`);

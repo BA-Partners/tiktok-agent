@@ -50,6 +50,40 @@ function generateAccountDir(userId, tiktokId) {
 }
 
 
+
+function getConfiguredApiKey() {
+  return process.env.LOCAL_API_KEY || process.env.API_KEY || '';
+}
+
+function extractBearerToken(req) {
+  const header = req.get('authorization') || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : '';
+}
+
+function requireLocalApiKey(req, res, next) {
+  const expected = getConfiguredApiKey();
+  if (!expected || req.method === 'OPTIONS') {
+    return next();
+  }
+
+  const provided = extractBearerToken(req);
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  if (providedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: {
+      message: 'Missing or invalid API key',
+      type: 'authentication_error',
+      param: null,
+      code: 'invalid_api_key'
+    }
+  });
+}
+
 function sendOpenAiCompatibleError(res, err) {
   if (err?.body?.error && err.status) {
     return res.status(err.status).json(err.body);
@@ -58,6 +92,8 @@ function sendOpenAiCompatibleError(res, err) {
   const compatibleError = createOpenAiCompatibleError(err.message || 'Unknown error');
   return res.status(compatibleError.status).json(compatibleError.body);
 }
+
+app.use(requireLocalApiKey);
 
 // OpenAI-compatible health endpoint
 app.get('/v1/health', async (req, res) => {

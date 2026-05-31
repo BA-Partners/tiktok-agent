@@ -242,6 +242,94 @@ ls package.json .env.example
 
 确认无误后再执行 `cp .env.example .env`、`npm install` 和 `npm run api:local`。
 
+### 从公网或远程环境访问你的 Mac API
+
+如果只是你自己在 Mac 上使用，停在 `http://localhost:3000` 即可。如果要让我这个远程环境访问你的 Mac，需要先把 Mac 上的 API 暴露成一个远程可达地址。
+
+**先开启 API Key，避免把本地 API 裸露到公网：**
+
+```bash
+cd ~/tiktok-agent
+LOCAL_API_KEY_VALUE=$(openssl rand -hex 24)
+cp .env .env.bak
+awk -v key="$LOCAL_API_KEY_VALUE" 'BEGIN{done=0} /^LOCAL_API_KEY=/{print "LOCAL_API_KEY=" key; done=1; next} {print} END{if(!done) print "LOCAL_API_KEY=" key}' .env.bak > .env
+grep LOCAL_API_KEY .env
+```
+
+重启 API：
+
+```bash
+npm run api:local
+```
+
+以后访问 API 时带上 header：
+
+```bash
+source .env
+curl http://localhost:3000/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
+```
+
+#### 方案 A：Cloudflare Tunnel（推荐临时测试）
+
+Cloudflare 官方文档说明 macOS 可以通过 Homebrew 安装 `cloudflared`。安装后可以把本机 `localhost:3000` 临时暴露成一个 HTTPS 地址。
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:3000
+```
+
+命令输出里会出现一个 `https://...trycloudflare.com` 地址。把这个地址发给我，我就可以测试：
+
+```bash
+source .env
+curl https://你的地址.trycloudflare.com/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
+```
+
+停止 tunnel：回到运行 `cloudflared tunnel` 的终端按 `Ctrl+C`。
+
+#### 方案 B：ngrok
+
+ngrok 官方 quickstart 的 macOS 安装方式是 Homebrew，启动 HTTP tunnel 时把端口换成当前 API 的 `3000`。
+
+```bash
+brew install ngrok
+ngrok config add-authtoken 你的ngrokToken
+ngrok http 3000
+```
+
+命令输出里会出现一个 `https://...ngrok-free.app` 地址。带 API key 测试：
+
+```bash
+source .env
+curl https://你的地址.ngrok-free.app/v1/health -H "Authorization: Bearer $LOCAL_API_KEY"
+```
+
+停止 tunnel：回到运行 `ngrok http 3000` 的终端按 `Ctrl+C`。
+
+#### 方案 C：Tailscale Funnel
+
+Tailscale 官方文档说明 `tailscale funnel` 可以把本机服务暴露到公网，也可以用 `tailscale serve` 只在 tailnet 内共享。Funnel 可直接反向代理本机服务端口：
+
+```bash
+tailscale funnel localhost:3000
+tailscale funnel status
+```
+
+如果你只想在自己的 tailnet 内访问，不想公开到互联网，优先使用：
+
+```bash
+tailscale serve localhost:3000
+tailscale serve status
+```
+
+停止 Funnel：
+
+```bash
+tailscale funnel reset
+```
+
+> 安全提醒：无论使用 Cloudflare Tunnel、ngrok 还是 Tailscale Funnel，都建议只临时开启，并设置 `LOCAL_API_KEY`。测试完成后关闭 tunnel。
+
 ### 远程服务连接你 Mac 上的 Ollama
 
 Ollama 默认监听 `127.0.0.1:11434`，只允许本机访问。如果 API 服务不在你的 Mac 上运行，远程环境不能使用 `http://localhost:11434` 访问你的 Mac。
