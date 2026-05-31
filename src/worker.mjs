@@ -1,11 +1,6 @@
 import 'dotenv/config';
-import { createClient } from '@supabase/supabase-js';
 import { createBrowser } from './browser.mjs';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+import { insertCommentLog } from './db/local.mjs';
 
 async function isPageAlive(page) {
   try {
@@ -126,9 +121,9 @@ async function runWorker(accountDir) {
           
           if (result > 0) {
             console.log(`❤️ 成功点赞 ${result} 条评论`);
-            await supabase.from('comment_logs').insert({
+            insertCommentLog({
               account: accountDir,
-              video_url: page.url(),
+              videoUrl: page.url(),
               content: `liked_${result}_comments`,
               status: 'success'
             });
@@ -161,4 +156,4 @@ async function runWorker(accountDir) {
   }
 }
 
-runWorker('accounts/acc1');
+runWorker(process.argv[2] || 'accounts/acc1');
